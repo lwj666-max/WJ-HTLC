@@ -1,1 +1,131 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+
+contract WJHTLC is ReentrancyGuard {
+using Address for address payable;
+address payable public sender;
+address payable public recipient;
+bytes32 public x1;//Alice' secret
+bytes32 public x2;
+bytes32 public a;
+bytes32 public y1;//Bob' secret
+bytes32 public y2;
+bytes32 public b;
+uint256 public expires;
+uint256 public expirationTime;
+uint256 public collateral;
+uint256 public deposit;
+uint256 public depositFee = (deposit * 2) / 100;//Used to calculate exit penalties, tentatively set at two percent of total capital for demonstration.
+uint256 public collateralFee = (collateral * 2) / 100;//Used to calculate exit penalties, tentatively set at two percent of total capital for demonstration.
+bool public depositClaimed = false;
+bool public collateralClaimed = false;
+bool public locked = false;
+bool public quited = false;
+bool public aborted = false;
+bool public withdrawled = false;
+constructor(
+address payable _sender,
+address payable _recipient,
+bytes32 _x1,
+bytes32 _x2,
+bytes32 _a,
+bytes32 _y1,
+bytes32 _y2,
+bytes32 _b,
+uint256 Time,//Time lock
+uint256 _collateral
+)  payable {
+require(_collateral < msg.value, "Collateral must be less than deposit");
+sender = _sender;
+recipient = _recipient;
+collateral = _collateral;
+deposit = msg.value - _collateral;
+require(collateral<deposit,"Collateral is too much");
+x1=_x1;
+x2=_x2;
+a=_a;
+y1=_y1;
+y2=_y2;
+b=_b;
+expirationTime = Time;
+expires = block.timestamp + Time;
+}
+
+function freeze (bytes32 preimagex1,bytes32 preimagey1,bytes32 preimagey2)public nonReentrant{
+require(msg.sender == recipient);
+require(hash(preimagex1) == x1);
+require(hash(preimagey1) == y1);
+require(hash(preimagey2) == y2);
+require(!locked);
+locked = true;
+}
+
+function quit (bytes32 preimagea)public nonReentrant{
+require(msg.sender == sender);
+require(!quited);
+require(hash(preimagea) == a );
+require(!locked);
+require(deposit>0 && collateral>0);
+expires = block.timestamp + expirationTime;
+quited = true;
+}
+
+function withdrawl ()public nonReentrant{
+require(msg.sender == sender);
+require(deposit>0 && collateral>0);
+require(block.timestamp>=expires);
+require(quited || aborted);
+require(!withdrawled);
+withdrawled = true;
+depositClaimed = true;
+collateralClaimed = true;
+uint256 finalDeposit = deposit - depositFee;
+uint256 finalCollateral = collateral - collateralFee;
+sender.sendValue(finalDeposit);
+sender.sendValue(finalCollateral);
+}
+
+function abort (bytes32 preimagea,bytes32 preimageb) public nonReentrant{
+require(msg.sender == sender);
+require(!quited);
+require(locked);
+require(!aborted);
+require(hash(preimagea) == a && hash(preimageb) == b);
+require(deposit>0&&collateral>0);
+aborted = true;
+expires = block.timestamp + expirationTime;
+}
+
+function resloveBob (bytes32 preimagex1,bytes32 preimagex2,bytes32 preimagey1,bytes32 preimagey2) public nonReentrant{
+require(msg.sender == recipient);
+require(hash(preimagex1) == x1 && hash(preimagex2) == x2 && hash(preimagey1) == y1 && hash(preimagey2) == y2);
+require(locked);
+require(!depositClaimed&&!collateralClaimed);
+depositClaimed = true;
+collateralClaimed = true;
+recipient.sendValue(deposit);
+sender.sendValue(collateral);
+}
+
+function resloveAnyone (bytes32 preimagex1,bytes32 preimagex2,bytes32 preimagey1,bytes32 preimagey2,bytes32 preimageb) public nonReentrant{
+require(hash(preimagex1) == x1 && hash(preimagex2) == x2 && hash(preimagey1) == y1 && hash(preimagey2) == y2 && hash(preimageb) == b);
+require(!depositClaimed && !collateralClaimed);
+depositClaimed = true;
+collateralClaimed = true;
+payable(msg.sender).sendValue(deposit);
+}
+
+function tips () public nonReentrant{
+require(withdrawled);
+payable(msg.sender).sendValue(depositFee);
+payable(msg.sender).sendValue(collateralFee);
+}
+
+function hash(bytes32 preimage) internal pure returns (bytes32) {
+return sha256(abi.encodePacked(preimage));
+}
+}
 
