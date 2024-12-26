@@ -60,6 +60,7 @@ require(hash(preimagex1) == x1);
 require(hash(preimagey1) == y1);
 require(hash(preimagey2) == y2);
 require(!locked);
+require(!quited);
 locked = true;
 }
 
@@ -104,6 +105,7 @@ require(msg.sender == recipient);
 require(hash(preimagex1) == x1 && hash(preimagex2) == x2 && hash(preimagey1) == y1 && hash(preimagey2) == y2);
 require(locked);
 require(!depositClaimed&&!collateralClaimed);
+require(!quited && !aborted);
 depositClaimed = true;
 collateralClaimed = true;
 recipient.sendValue(deposit);
@@ -113,6 +115,7 @@ sender.sendValue(collateral);
 function resloveAnyone (bytes32 preimagex1,bytes32 preimagex2,bytes32 preimagey1,bytes32 preimagey2,bytes32 preimageb) public nonReentrant{
 require(hash(preimagex1) == x1 && hash(preimagex2) == x2 && hash(preimagey1) == y1 && hash(preimagey2) == y2 && hash(preimageb) == b);
 require(!depositClaimed && !collateralClaimed);
+require(!quited && !aborted);
 depositClaimed = true;
 collateralClaimed = true;
 payable(msg.sender).sendValue(deposit);
